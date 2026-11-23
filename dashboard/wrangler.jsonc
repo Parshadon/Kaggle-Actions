@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "peakcut-studio",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-23",
+  "assets": {"directory":"./public", "binding":"ASSETS", "run_worker_first":true, "html_handling":"none"},
+  "d1_databases": [{"binding":"DB","database_name":"peakcut-control","database_id":"REPLACE_WITH_YOUR_D1_DATABASE_ID"}],
+  "vars": {"GITHUB_REPO":"YOUR_USERNAME/YOUR_REPOSITORY", "GITHUB_REF":"main", "KAGGLE_NOTEBOOK_URL":"https://www.kaggle.com/code"}
+}
