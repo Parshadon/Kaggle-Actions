@@ -1,0 +1,43 @@
+name: Start PeakCut on Kaggle
+on:
+  workflow_dispatch:
+concurrency:
+  group: peakcut-kaggle-start
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install kaggle
+      - name: Prepare your private notebook
+        env:
+          KERNEL_ID: ${{ vars.KAGGLE_KERNEL_ID }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+          STATE_DATASET: ${{ vars.KAGGLE_STATE_DATASET }}
+          RESTORE_BACKUP: ${{ vars.RESTORE_BACKUP }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, re
+          kernel = os.environ['KERNEL_ID']
+          origin = os.environ['DASHBOARD_URL'].rstrip('/')
+          assert re.fullmatch(r'[\w-]+/[\w-]+',kernel), 'Set KAGGLE_KERNEL_ID to username/notebook-slug'
+          assert re.fullmatch(r'https://[A-Za-z0-9.-]+',origin), 'Set DASHBOARD_URL to your HTTPS origin'
+          folder = pathlib.Path('submission'); folder.mkdir()
+          notebook = json.loads(pathlib.Path('PeakCut - Kaggle Studio.ipynb').read_text())
+          notebook['cells'][2]['source'] = [f'DASHBOARD_URL = {origin!r}\n', 'SESSION_MINUTES = 120\n', 'USE_GPU_ASR = True\n', 'USE_LOCAL_AI = True\n', f'RESTORE_BACKUP = {os.environ.get("RESTORE_BACKUP", "")!r}\n']
+          (folder/'peakcut.ipynb').write_text(json.dumps(notebook))
+          metadata = dict(id=kernel,title='PeakCut Kaggle Studio',code_file='peakcut.ipynb',language='python',kernel_type='notebook',is_private=True,enable_gpu=True,enable_internet=True,dataset_sources=[],competition_sources=[],kernel_sources=[])
+          if os.environ.get('STATE_DATASET'): metadata['dataset_sources'] = [os.environ['STATE_DATASET']]
+          (folder/'kernel-metadata.json').write_text(json.dumps(metadata))
+          PY
+      - name: Request the GPU run
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: kaggle kernels push -p submission --accelerator NvidiaTeslaT4 -t 14400
