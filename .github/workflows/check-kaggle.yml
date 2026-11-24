@@ -1,0 +1,40 @@
+name: Check existing Kaggle run
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KERNEL_ID: ${{ vars.KAGGLE_KERNEL_ID }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade kaggle six
+      - name: Read existing run status without submitting another version
+        run: |
+          test -n "$KERNEL_ID" || { echo 'Missing KAGGLE_KERNEL_ID variable'; exit 1; }
+          kaggle kernels status "$KERNEL_ID"
+      - name: Inspect saved notebook configuration without executing it
+        run: |
+          kaggle kernels pull "$KERNEL_ID" -p inspection
+          python - <<'PY'
+          import ast, pathlib, json
+          for path in pathlib.Path('inspection').glob('*.ipynb'):
+              doc=json.loads(path.read_text())
+              found=[]
+              for cell in doc.get('cells',[]):
+                  if cell.get('cell_type') != 'code': continue
+                  try: tree=ast.parse(''.join(cell.get('source',[])))
+                  except SyntaxError: continue
+                  for node in tree.body:
+                      if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='DASHBOARD_URL' for t in node.targets):
+                          if isinstance(node.value,ast.Constant) and isinstance(node.value.value,str): found.append(node.value.value)
+              print('Saved notebook:',path.name)
+              print('Dashboard URL assignments:',found)
+              print('Placeholder remains:',any('YOUR-' in value for value in found))
+          PY
