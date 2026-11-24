@@ -38,3 +38,7 @@ jobs:
               print('Dashboard URL assignments:',found)
               print('Placeholder remains:',any('YOUR-' in value for value in found))
           PY
+      - name: Read failed Kaggle run logs
+        continue-on-error: true
+        timeout-minutes: 2
+        run: kaggle kernels logs "$KERNEL_ID"      
